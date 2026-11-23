@@ -1,0 +1,4 @@
+{
+  "demo-a": { "input_usd_per_million": "0.40", "output_usd_per_million": "1.20" },
+  "demo-b": { "input_usd_per_million": "0.15", "output_usd_per_million": "0.60" }
+}
