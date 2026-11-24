@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 from jsonl_budget import load_rates, summarize
@@ -89,6 +90,51 @@ class ReportTests(unittest.TestCase):
                 load_rates('{"x":{"input_usd_per_million":' + rate + ',"output_usd_per_million":0}}')
         with self.assertRaisesRegex(ValueError, "must have exactly"):
             load_rates('{"x":{"input_usd_per_million":"2"}}')
+
+    def test_fixed_point_rate_digit_boundaries_and_exponents(self):
+        token_line = '{"model":"x","input_tokens":1000000,"output_tokens":0}'
+        for rate, cost in (
+            ("0.000000000001", "0.000000000001"),
+            ("999999999999.999999999999", "999999999999.999999999999"),
+            ("0.000000000000", "0"),
+        ):
+            for literal in (rate, json.dumps(rate)):
+                with self.subTest(literal=literal):
+                    rates = load_rates(
+                        '{"x":{"input_usd_per_million":' + literal + ',"output_usd_per_million":0}}'
+                    )
+                    self.assertEqual(summarize([token_line], rates)["totals"]["cost_usd"], cost)
+        for rate in (
+            "1e-7", "1e2", "0e0", "-0.0000001", "0.0000000000001",
+            "1000000000000", "1000000000000.0",
+        ):
+            for literal in (rate, json.dumps(rate)):
+                with self.subTest(literal=literal), self.assertRaises(ValueError):
+                    load_rates(
+                        '{"x":{"input_usd_per_million":' + literal + ',"output_usd_per_million":0}}'
+                    )
+
+    def test_cli_small_fixed_point_numeric_rate_matches_quoted_rate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            usage = Path(temp) / "usage.jsonl"
+            usage.write_text(
+                '{"model":"x","input_tokens":1000000,"output_tokens":0}\n', encoding="utf-8",
+            )
+            rates = Path(temp) / "rates.json"
+            reports = []
+            for literal in ("0.0000001", '"0.0000001"'):
+                rates.write_text(
+                    '{"x":{"input_usd_per_million":' + literal + ',"output_usd_per_million":0}}',
+                    encoding="utf-8",
+                )
+                proc = subprocess.run(
+                    [sys.executable, str(ROOT / "jsonl_budget.py"), str(usage), "--rates", str(rates)],
+                    capture_output=True, check=True,
+                )
+                self.assertEqual(proc.stderr, b"")
+                self.assertEqual(json.loads(proc.stdout)["totals"]["cost_usd"], "0.0000001")
+                reports.append(proc.stdout)
+            self.assertEqual(reports[0], reports[1])
 
     def test_cli_file_and_stdin_have_identical_json(self):
         command = [sys.executable, str(ROOT / "jsonl_budget.py"), "--rates", str(RATES)]

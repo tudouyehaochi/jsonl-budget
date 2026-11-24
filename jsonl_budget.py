@@ -27,22 +27,24 @@ def reject_constant(value):
     raise ValueError(f"invalid JSON constant: {value}")
 
 
-def read_json(text):
+def read_json(text, *, parse_float=Decimal):
     return json.loads(
-        text, parse_float=Decimal, parse_constant=reject_constant,
+        text, parse_float=parse_float, parse_constant=reject_constant,
         object_pairs_hook=unique_object,
     )
 
 
 def parse_rate(value):
-    if type(value) not in (str, int, Decimal) or not RATE_PATTERN.fullmatch(str(value)):
+    if type(value) not in (str, int) or not RATE_PATTERN.fullmatch(str(value)):
         raise ValueError("rates must be nonnegative decimals with at most 12 digits on each side")
     return Decimal(value)
 
 
 def load_rates(text):
     """Return model -> (input USD per million, output USD per million)."""
-    rates = read_json(text)
+    # Validate the original number spelling before Decimal can normalize it
+    # (for example, fixed-point 0.0000001 becomes 1E-7).
+    rates = read_json(text, parse_float=str)
     if not isinstance(rates, dict) or not rates:
         raise ValueError("expected a nonempty JSON object keyed by model name")
     result = {}
