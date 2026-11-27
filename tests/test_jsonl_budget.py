@@ -97,6 +97,8 @@ class ReportTests(unittest.TestCase):
             ("0.000000000001", "0.000000000001"),
             ("999999999999.999999999999", "999999999999.999999999999"),
             ("0.000000000000", "0"),
+            ("0", "0"),
+            ("999999999999", "999999999999"),
         ):
             for literal in (rate, json.dumps(rate)):
                 with self.subTest(literal=literal):
@@ -105,7 +107,7 @@ class ReportTests(unittest.TestCase):
                     )
                     self.assertEqual(summarize([token_line], rates)["totals"]["cost_usd"], cost)
         for rate in (
-            "1e-7", "1e2", "0e0", "-0.0000001", "0.0000000000001",
+            "1e-7", "1e2", "0e0", "-0", "-0.0", "-0.0000001", "0.0000000000001",
             "1000000000000", "1000000000000.0",
         ):
             for literal in (rate, json.dumps(rate)):
